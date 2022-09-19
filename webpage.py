@@ -4,6 +4,7 @@ import time
 from selenium.webdriver.support.ui import Select
 from bs4 import BeautifulSoup
 import requests
+import lxml
 
 
 class Scraper:
@@ -14,7 +15,7 @@ class Scraper:
 
         self.driver = webdriver.Chrome()
         self.driver.get(URL)
-        self.cookie_buttons = []
+        self.elements = dict()
     
     
     
@@ -63,43 +64,51 @@ class Scraper:
             if new_height == last_height:
                 break
             last_height = new_height
+    
+    
+    
+    def build_xpath(self, element):
+    
+        components = []
+        
+        for parent in element.parents:
             
+            siblings = parent.find_all(element.name, recursive = False)
+            
+            if len(siblings) == 1:
+                components.append(element.name)
+                
+            else:
+                for index, sibling in enumerate(siblings, 1):
+                    if sibling is element:
+                        components.append(element.name + '[' + str(index) + ']')
+                        
+            element = parent
+        
+        components.reverse()
+        return('/' + '/'.join(components))
+       
+        
         
 
 if __name__ == '__main__':
     
     lego = Scraper('https://www.lego.com/en-gb')
-    
-    lego.cookie_buttons = ['//*[@id="__next"]/div[5]/div/div/div[1]/div[1]/div/button',
-                           '/html/body/div[6]/div/aside/div/div/div[3]/div[1]/button[1]']
-    lego.remove_cookies()
-    
-    lego.driver.get('https://www.lego.com/en-gb/categories/age-1-plus-years')
-    buttons = ['//*[@id="product-facet-productType-accordion-content"]/div/div/ul/li[1]/label/div',
-               '/html/body/div[1]/main/div/div[4]/div/div/section/div/div[2]/div/div/a']
-    lego.click_buttons(buttons)
-    lego.scroll_to_bottom()
-    print('done')
-    
-    #To be removed soon --
-    
-    # //*[@id="bltc6cdf6e15ea6c848"]/section/div/div[2]/div/div/a
-    
-    # [@id="bltb4ff2489704d2385"]//*[@id="bltb4ff2489704d2385"]/section/div/div[2]/div/div
-    
-    # //*[@id="blt0723e5915b29f00d"]/section/div/div[2]/div/div
-    
-    # //*[@id="blt0723e5915b29f00d"]/section/div/div[2]/div
+    while True:
+        html = lego.driver.execute_script("return document.documentElement.outerHTML;")
+        soup = BeautifulSoup(html, 'lxml')
+        result = soup.find(attrs = {'class' : 'Button__Base-ae3gos-0 kxFwBq AgeGatestyles__StyledButton-xudtvj-12 pKsmz'})
+        if result != None:
+            print(result)
+            break
 
+    # lego.cookie_buttons = ['//*[@id="__next"]/div[5]/div/div/div[1]/div[1]/div/button',
+    #                        '/html/body/div[6]/div/aside/div/div/div[3]/div[1]/button[1]']
+    # lego.remove_cookies()
     
-    # ProductListingsstyles__ProductsWrapper-sc-1taio5c-2 dFBaNn
-    
-    # ProductListingsstyles__ProductsWrapper-sc-1taio5c-2 dFBaNn
-    
-    # ProductListingsstyles__ProductsWrapper-sc-1taio5c-2 dFBaNn
-    
-    
-    
-    # ProductListingsstyles__ProductsWrapper-sc-1taio5c-2 dFBaNn
-    
-    # LinksNextstyles__AnchorButton-sc-1sxojvh-1 kARNPN Paginationstyles__ShowAllLink-npbsev-13 iWkTte
+    # lego.driver.get('https://www.lego.com/en-gb/categories/age-1-plus-years')
+    # buttons = ['//*[@id="product-facet-productType-accordion-content"]/div/div/ul/li[1]/label/div',
+    #            '/html/body/div[1]/main/div/div[4]/div/div/section/div/div[2]/div/div/a']
+    # lego.click_buttons(buttons)
+    # lego.scroll_to_bottom()
+    # print('done')
