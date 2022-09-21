@@ -1,69 +1,67 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 import time
-from selenium.webdriver.support.ui import Select
 from bs4 import BeautifulSoup
-import requests
-import lxml
+import lego_elements as l
 
 
 class Scraper:
     
     
-    def __init__(self, URL):
+    def __init__(self, URL, webpage_name):
         
-
         self.driver = webdriver.Chrome()
-        self.driver.get(URL)
         self.elements = dict()
+        self.driver.get(URL)
+        self.webpage = webpage_name
     
     
     
-    def click_button(self, identifier, identification = 'XPATH'):
-        exec('self.driver.find_element(By.' + identification + ', \'' + identifier+ '\').click()')
+    def navigate(self, URL, webpage_name):
+        self.driver.get(URL)
+        self.webpage = webpage_name
+    
+    
+    
+    def click_button(self, button_name):
+        
+        try:
+            self.find_element(button_name).click()
+        except:
+            print(f'failed to press button {button_name} on page {self.webpage}.')
+            
         time.sleep(1)
     
     
     
-    def click_buttons(self, buttons, identification = 'XPATH'):
+    def click_buttons(self, buttons):
         
-        for button in buttons:
-            
-            starting_time = time.time()
-            
-            while True:
-                
-                try:
-                    self.click_button(button, identification)
-                    break
-                except:
-                    pass
-                
-                if time.time() > starting_time + 10:
-                    print(f"Failed to press button (identified by {identification}) with identification {button}")
-                    break
-          
-                
-
-    def remove_cookies(self, identification = 'XPATH'):
-        self.click_buttons(self.cookie_buttons, identification)
+        for button_name in buttons:
+            self.click_button(button_name)
     
     
     
-    def scroll_to_bottom(self):
+    def wait_for(self, element_name, appear = 'appear', period = 10):
         
-        last_height = self.driver.execute_script("return document.body.scrollHeight")
-
+        starting_time = time.time()
+        
         while True:
-
-            self.driver.execute_script("window.scrollTo(100, document.body.scrollHeight);")
-            time.sleep(1)
-
-            new_height = self.driver.execute_script("return document.body.scrollHeight")
             
-            if new_height == last_height:
-                break
-            last_height = new_height
+            if (self.find_element_soup(element_name) == None) and (appear == 'disappear'):
+                return True
+            if (self.find_element_soup(element_name) != None) and (appear == 'appear'):
+                return True
+            
+            if time.time() > starting_time + period:
+                print(f"waited {period} seconds for element {element_name} to {appear}. But it never did.")
+                return False
+    
+    
+    
+    def scroll_to_bottom(self, bottom_element_name, condition_element_name, condition):
+        
+        while not condition(self.find_element_soup(condition_element_name)):
+            self.driver.execute_script("arguments[0].scrollIntoView();", self.find_element(bottom_element_name))
     
     
     
@@ -81,34 +79,64 @@ class Scraper:
             else:
                 for index, sibling in enumerate(siblings, 1):
                     if sibling is element:
-                        components.append(element.name + '[' + str(index) + ']')
+                        components.append(f'{element.name}[{str(index)}]')
                         
             element = parent
         
         components.reverse()
         return('/' + '/'.join(components))
-       
+    
+    
+    
+    def find_element_soup(self, element_name):
         
+        element = self.elements[element_name]
         
+        if element['dependency'] == self.webpage:
+            parent = BeautifulSoup(self.driver.execute_script("return document.documentElement.outerHTML;"), 'html.parser')
+        else:
+            parent = self.find_element_soup(element['dependency'])
+        
+        return parent.find(element['condition'])
+    
+    derive_xpath = lambda self, element_name : self.build_xpath(self.find_element_soup(element_name))
+    
+    find_element = lambda self, element_name : self.driver.find_element(By.XPATH, self.derive_xpath(element_name))
+
+
+
+
 
 if __name__ == '__main__':
     
-    lego = Scraper('https://www.lego.com/en-gb')
-    while True:
-        html = lego.driver.execute_script("return document.documentElement.outerHTML;")
-        soup = BeautifulSoup(html, 'lxml')
-        result = soup.find(attrs = {'class' : 'Button__Base-ae3gos-0 kxFwBq AgeGatestyles__StyledButton-xudtvj-12 pKsmz'})
-        if result != None:
-            print(result)
-            break
-
-    # lego.cookie_buttons = ['//*[@id="__next"]/div[5]/div/div/div[1]/div[1]/div/button',
-    #                        '/html/body/div[6]/div/aside/div/div/div[3]/div[1]/button[1]']
-    # lego.remove_cookies()
+    lego = Scraper('https://www.lego.com/en-gb', 'front_page')
     
-    # lego.driver.get('https://www.lego.com/en-gb/categories/age-1-plus-years')
-    # buttons = ['//*[@id="product-facet-productType-accordion-content"]/div/div/ul/li[1]/label/div',
-    #            '/html/body/div[1]/main/div/div[4]/div/div/section/div/div[2]/div/div/a']
-    # lego.click_buttons(buttons)
-    # lego.scroll_to_bottom()
-    # print('done')
+    
+    lego.elements = l.dictionary
+    
+    lego.wait_for('age_check_overlay')
+    lego.click_buttons(['age_check_button', 'cookie_accept_button'])
+    
+    lego.navigate('https://www.lego.com/en-gb/categories/age-1-plus-years', 'product_list')
+    if lego.wait_for('survey_window', period = 5):
+        lego.click_button('survey_window_no')
+    lego.click_buttons(['sets_checkbox', 'show_all_button'])
+    
+    lego.wait_for('page_bottom_post_show_all')
+    condition = lambda element : element.get_text().split()[1] == element.get_text().split()[-1]
+    lego.scroll_to_bottom('page_bottom_post_show_all', 'showing_x_of_y_text', condition)
+        
+        # 'page_info_and_bottom' : {
+        #     'condition' : lambda tag : tag.has_attr('class') and tag['class'] == ['ProductListingsstyles__ProductsWrapper-sc-1taio5c-2' 'dFBaNn'],
+        #     'dependency' : 'product_list'
+        # }
+
+        # 'page_bottom_pre_show_all' : {
+        #     'condition' : lambda tag : tag.has_attr('class') and tag['class'] == ['Paginationstyles__Container-npbsev-0', 'jxPRsL'],
+        #     'dependency' : 'page_info_and_bottom'
+        # }
+        
+        # 'page_bottom_post_show_all' : {
+        #     'condition' : lambda tag : tag.has_attr('class') and tag['class'] == ['Scrollstyles__Container-sc-1370r7z-0', 'kvnbhA'],
+        #     'dependency' : 'page_info_and_bottom'
+        # }
