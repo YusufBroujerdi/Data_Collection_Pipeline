@@ -10,9 +10,9 @@ class Scraper:
     
     def __init__(self, URL, webpage_name):
         
-        chrome_options = webdriver.ChromeOptions()
-        chrome_options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
-        self.driver = webdriver.Chrome(chrome_options = chrome_options)
+        options = webdriver.ChromeOptions()
+        options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
+        self.driver = webdriver.Chrome(chrome_options = options)
         self.elements = dict()
         self.driver.get(URL)
         self.webpage = webpage_name
@@ -44,7 +44,7 @@ class Scraper:
     
     
     
-    def wait_for(self, element_name, appear = 'appear', period = 10):
+    def wait_for(self, element_name, appear = 'appear', period = 10, print_warning = True):
         
         starting_time = time.time()
         
@@ -56,7 +56,8 @@ class Scraper:
                 return True
             
             if time.time() > starting_time + period:
-                print(f"waited {period} seconds for element {element_name} to {appear}. But it never did.")
+                if print_warning:
+                    print(f"waited {period} seconds for element {element_name} to {appear}. But it never did.")
                 return False
     
     
@@ -133,7 +134,7 @@ if __name__ == '__main__':
     for product_list_link in l.product_list_links:
         
         lego.navigate(product_list_link, 'product_list')
-        if lego.wait_for('survey_window', period = 5):
+        if lego.wait_for('survey_window', period = 5, print_warning = False):
             lego.click_button('survey_window_no')
         lego.click_button('sets_checkbox')
         lego.wait_for('show_all_button')
