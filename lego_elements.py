@@ -28,7 +28,7 @@ dictionary = {
     },
     
     'page_info' : {
-        'condition' : lambda tag : tag.has_attr('class') and tag['class'] == ['ProductGridstyles__Grid-lc2zkx-0' 'eGsxII'],
+        'condition' : lambda tag : tag.has_attr('class') and tag['class'] == ['ProductGridstyles__Grid-lc2zkx-0', 'eGsxII'],
         'dependency' : 'product_list'
     },
     
@@ -43,7 +43,7 @@ dictionary = {
     },
     
     'showing_x_of_y_text' : {
-        'condition' : lambda tag : tag.name == 'div',
+        'condition' : lambda tag : tag.has_attr('class') and tag['class'] == ['Scrollstyles__ScrollInfo-sc-1370r7z-1', 'hOZxdU'],
         'dependency' : 'page_bottom_post_show_all'
     },
     
@@ -59,6 +59,15 @@ dictionary = {
     
     #Details page elements
 }
+
+
+front_page_link = 'https://www.lego.com/en-gb'
+product_list_links = ['https://www.lego.com/en-au/categories/age-1-plus-years',
+    'https://www.lego.com/en-au/categories/age-4-plus-years',
+    'https://www.lego.com/en-au/categories/age-6-plus-years',
+    'https://www.lego.com/en-au/categories/age-9-plus-years',
+    'https://www.lego.com/en-au/categories/age-13-plus-years',
+    'https://www.lego.com/en-au/categories/age-18-plus-years']
 
 
 # 'page_info_and_bottom' : {

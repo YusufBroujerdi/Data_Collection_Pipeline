@@ -18,6 +18,7 @@ class Scraper:
     
     
     def navigate(self, URL, webpage_name):
+        
         self.driver.get(URL)
         self.webpage = webpage_name
     
@@ -65,6 +66,18 @@ class Scraper:
     
     
     
+    def harvest_links(self, element_name, condition):
+        
+        element = self.find_element_soup(element_name)
+        links = []
+        
+        for link_element in element.find_all(condition):
+            links.append(link_element.get('href'))
+        
+        return links
+    
+    
+    
     def build_xpath(self, element):
     
         components = []
@@ -109,11 +122,8 @@ class Scraper:
 
 if __name__ == '__main__':
     
-    lego = Scraper('https://www.lego.com/en-gb', 'front_page')
-    
-    
+    lego = Scraper(l.front_page_link, 'front_page')
     lego.elements = l.dictionary
-    
     lego.wait_for('age_check_overlay')
     lego.click_buttons(['age_check_button', 'cookie_accept_button'])
     
@@ -125,18 +135,8 @@ if __name__ == '__main__':
     lego.wait_for('page_bottom_post_show_all')
     condition = lambda element : element.get_text().split()[1] == element.get_text().split()[-1]
     lego.scroll_to_bottom('page_bottom_post_show_all', 'showing_x_of_y_text', condition)
-        
-        # 'page_info_and_bottom' : {
-        #     'condition' : lambda tag : tag.has_attr('class') and tag['class'] == ['ProductListingsstyles__ProductsWrapper-sc-1taio5c-2' 'dFBaNn'],
-        #     'dependency' : 'product_list'
-        # }
-
-        # 'page_bottom_pre_show_all' : {
-        #     'condition' : lambda tag : tag.has_attr('class') and tag['class'] == ['Paginationstyles__Container-npbsev-0', 'jxPRsL'],
-        #     'dependency' : 'page_info_and_bottom'
-        # }
-        
-        # 'page_bottom_post_show_all' : {
-        #     'condition' : lambda tag : tag.has_attr('class') and tag['class'] == ['Scrollstyles__Container-sc-1370r7z-0', 'kvnbhA'],
-        #     'dependency' : 'page_info_and_bottom'
-        # }
+    
+    condition = lambda tag : tag.has_attr('data-test') and tag['data-test'] == 'product-leaf-title-link'
+    links = lego.harvest_links('page_info', condition)
+    
+    print(links)
