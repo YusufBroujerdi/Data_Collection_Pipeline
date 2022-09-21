@@ -10,7 +10,9 @@ class Scraper:
     
     def __init__(self, URL, webpage_name):
         
-        self.driver = webdriver.Chrome()
+        chrome_options = webdriver.ChromeOptions()
+        chrome_options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
+        self.driver = webdriver.Chrome(chrome_options = chrome_options)
         self.elements = dict()
         self.driver.get(URL)
         self.webpage = webpage_name
@@ -127,16 +129,21 @@ if __name__ == '__main__':
     lego.wait_for('age_check_overlay')
     lego.click_buttons(['age_check_button', 'cookie_accept_button'])
     
-    lego.navigate('https://www.lego.com/en-gb/categories/age-1-plus-years', 'product_list')
-    if lego.wait_for('survey_window', period = 5):
-        lego.click_button('survey_window_no')
-    lego.click_buttons(['sets_checkbox', 'show_all_button'])
+    details_page_links = []
+    for product_list_link in l.product_list_links:
+        
+        lego.navigate(product_list_link, 'product_list')
+        if lego.wait_for('survey_window', period = 5):
+            lego.click_button('survey_window_no')
+        lego.click_button('sets_checkbox')
+        lego.wait_for('show_all_button')
+        lego.click_button('show_all_button')
+        
+        lego.wait_for('page_bottom_post_show_all')
+        condition = lambda element : element.get_text().split()[1] == element.get_text().split()[-1]
+        lego.scroll_to_bottom('page_bottom_post_show_all', 'showing_x_of_y_text', condition)
+        
+        condition = lambda tag : tag.has_attr('data-test') and tag['data-test'] == 'product-leaf-title-link'
+        details_page_links = details_page_links + lego.harvest_links('page_info', condition)
     
-    lego.wait_for('page_bottom_post_show_all')
-    condition = lambda element : element.get_text().split()[1] == element.get_text().split()[-1]
-    lego.scroll_to_bottom('page_bottom_post_show_all', 'showing_x_of_y_text', condition)
-    
-    condition = lambda tag : tag.has_attr('data-test') and tag['data-test'] == 'product-leaf-title-link'
-    links = lego.harvest_links('page_info', condition)
-    
-    print(links)
+    print(details_page_links)
