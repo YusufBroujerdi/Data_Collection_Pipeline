@@ -39,13 +39,6 @@ class Scraper:
     
     
     
-    def click_buttons(self, buttons):
-        
-        for button_name in buttons:
-            self.click_button(button_name)
-    
-    
-    
     def wait_for(self, element_name, appear = 'appear', period = 10, print_warning = True):
         
         starting_time = time.time()
@@ -81,25 +74,15 @@ class Scraper:
     
     def harvest_links(self, element_name, condition):
         
-        element = self.find_element_soup(element_name)
-        links = []
-        
-        for link_element in element.find_all(condition):
-            links.append(link_element.get('href'))
-        
-        return links
+        link_elements = self.find_element_soup(element_name).find_all(condition)
+        return [link_element.get('href') for link_element in link_elements]
     
     
     
     def harvest_image_sources(self, element_name, condition = lambda tag : tag.name == 'img'):
         
-        element = self.find_element_soup(element_name)
-        src_names = []
-        
-        for picture_element in element.find_all(condition):
-            src_names.append(picture_element.get('src').split('?')[0])
-        
-        return src_names
+        picture_elements = self.find_element_soup(element_name).find_all(condition)
+        return [picture_element.get('src').split('?')[0] for picture_element in picture_elements]
     
     
     
@@ -116,7 +99,7 @@ class Scraper:
     
     
     def store_data(self, data):
-            
+        
         path = os.path.join('raw_data', data['ID'])
         
         try:
@@ -185,7 +168,7 @@ class LegoScraper(Scraper):
     def setup(self):
 
         self.wait_for('age_check_overlay')
-        self.click_buttons(['age_check_button', 'cookie_accept_button'])
+        self.wait_for_then_click(['age_check_button', 'cookie_accept_button'])
     
     
     
