@@ -108,21 +108,3 @@ product_list_links = ['https://www.lego.com/en-au/categories/age-1-plus-years',
 #     'condition' : lambda tag : tag.has_attr('class') and tag['class'] == ['Scrollstyles__Container-sc-1370r7z-0', 'kvnbhA'],
 #     'dependency' : 'page_info_and_bottom'
 # }
-
-#'/html/body/div[1]/main'
-
-#'/html/body/div[1]/main/div'
-
-#description '/html/body/div[1]/main/div/div[2]/div/div/div'
-#'ProductDetailsPagestyles__ProductDynamicContentContainer-sc-1waehzg-6', 'iHKzHW'
-
-#stats: '/html/body/div[1]/main/div/div[1]/div/ div[1]/div[2]/div'
-#'ProductAttributesstyles__Container-sc-1sfk910-0', 'ctVkib'
-
-#rates: '/html/body/div[1]/main/div/div[1]/div/ div[2]/div[1]'
-#'ProductOverviewstyles__ProductBadgesRow-sc-1a1az6h-0', 'bCQoZx'
-
-#price: '/html/body/div[1]/main/div/div[1]/div/ div[2]/div[3]'
-#'ProductOverviewstyles__PriceAvailabilityWrapper-sc-1a1az6h-10', 'fCBTFc'
-
-#pictures: 'ThumbnailsTrackstyles__Track-sc-141n2vw-4', 'dHIUWk'

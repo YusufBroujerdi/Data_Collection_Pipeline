@@ -273,8 +273,6 @@ class LegoScraper(Scraper):
             
             filepath = os.path.join(path, link.split('/')[-1])
             urllib.request.urlretrieve(link, filepath)
-            
-            
     
     
     
