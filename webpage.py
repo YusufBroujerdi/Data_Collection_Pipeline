@@ -4,6 +4,9 @@ import time
 from bs4 import BeautifulSoup
 import lego_elements as l
 import uuid
+import os
+import json
+import urllib.request
 
 
 class Scraper:
@@ -33,6 +36,13 @@ class Scraper:
             print(f'failed to press button {button_name} on page {self.webpage}.')
             
         time.sleep(1)
+    
+    
+    
+    def click_buttons(self, buttons):
+        
+        for button_name in buttons:
+            self.click_button(button_name)
     
     
     
@@ -83,7 +93,6 @@ class Scraper:
     
     def harvest_image_sources(self, element_name, condition = lambda tag : tag.name == 'img'):
         
-        print(self.elements[element_name])
         element = self.find_element_soup(element_name)
         src_names = []
         
@@ -103,6 +112,20 @@ class Scraper:
             text[element_name] = element.get_text(separator = '¬')
         
         return text
+    
+    
+    
+    def store_data(self, data):
+            
+        path = os.path.join('raw_data', data['ID'])
+        
+        try:
+            os.mkdir(path)
+        except:
+            print('Storing data in an ID that already exists!')
+        
+        with open(f'{path}\data.json', 'w', encoding = 'utf-8') as file:
+            json.dump(data, file)
     
     
     
@@ -132,7 +155,8 @@ class Scraper:
     def find_element_soup(self, element_name):
         
         if element_name == 'webpage':
-            return BeautifulSoup(self.driver.execute_script("return document.documentElement.outerHTML;"), 'html.parser')
+            page_html = self.driver.execute_script("return document.documentElement.outerHTML;")
+            return BeautifulSoup(page_html, 'html.parser')
         
         element = self.elements[element_name]
         parent = self.find_element_soup(element['dependency'])
@@ -151,7 +175,7 @@ class LegoScraper(Scraper):
     
     
     def __init__(self):
-        super().__init___(l.front_page_link, 'front_page')
+        super().__init__(l.front_page_link, 'front_page')
         self.elements = l.dictionary
         self.setup()
         #self.links = self.get_lego_links()
@@ -160,8 +184,8 @@ class LegoScraper(Scraper):
     
     def setup(self):
 
-        lego.wait_for('age_check_overlay')
-        lego.click_buttons(['age_check_button', 'cookie_accept_button'])
+        self.wait_for('age_check_overlay')
+        self.click_buttons(['age_check_button', 'cookie_accept_button'])
     
     
     
@@ -171,17 +195,12 @@ class LegoScraper(Scraper):
         for product_list_link in l.product_list_links:
             
             self.navigate(product_list_link, 'product_list')
-            
-            if self.wait_for('survey_window', period = 5, print_warning = False):
-                self.click_button('survey_window_no')
-            
-            self.click_button('sets_checkbox')
-            self.wait_for('show_all_button')
-            self.click_button('show_all_button')
+            self.clear_survey_window()
+            self.wait_for_then_click(['sets_checkbox', 'show_all_button'])
             
             self.wait_for('page_bottom_post_show_all')
             condition = lambda element : element.get_text().split()[1] == element.get_text().split()[-1]
-            #above condition checks if x == y in "showing_x_of_y_text" element.
+            #above condition checks if x == y in "showing x of y text" element.
             self.scroll_to_bottom('page_bottom_post_show_all', 'showing_x_of_y_text', condition)
             
             condition = lambda element : element.has_attr('data-test') and element['data-test'] == 'product-leaf-title-link'
@@ -192,14 +211,32 @@ class LegoScraper(Scraper):
     
     
     
-    def expand_lego_data(self, text, img_links):
+    def collect_product_data(self, link, download_pics = False):
+
+        product_id = link.split('-')[-1]
+        self.navigate(link, f'{product_id}_details_page')
+        self.clear_survey_window()
+    
+        imgs = lego.harvest_image_sources('item_pictures')
+        text = lego.harvest_text_from_elements(['item_description', 'item_stats', 'item_rating', 'item_price'])
+        return(lego.expand_lego_data(text, imgs, download_pics))
+    
+    
+    
+    def collect_products_data(self, links):
         
+        for links in link:
+            self.collect_product_data(link)
+    
+    
+    
+    def expand_lego_data(self, text, img_links, download_pics):
         
         item_stats = text['item_stats'].split('¬')
         item_rating = text['item_rating'].split('¬')
         item_price = text['item_price'].split('¬')
         
-        return {'ID' : item_stats[6],
+        data = {'ID' : item_stats[6],
                 'Name' : item_rating[0],
                 'Price' : item_price[1],
                 'Age' : item_stats[0],
@@ -208,48 +245,49 @@ class LegoScraper(Scraper):
                 'Number of Ratings' : item_rating[3],
                 'Description' : text['item_description'],
                 'Image Links' : img_links,
-                'UUID' : uuid.uuid4()
+                'UUID' : str(uuid.uuid4())
         }
+        
+        self.store_data(data)
+        if download_pics:
+            self.download_product_pictures(data)
+        return data
     
     
     
-    def store_lego_data(self):
-        pass
+    def download_product_pictures(self, data):
+        
+        for link in data['Image Links']:
+            
+            link_ending = link.split('/')[-1].split('_')
+            
+            if len(link_ending) == 1:
+                category = 'main_picture'
+            else:
+                link_ending[-1] = ''.join([i for i in link_ending[-1] if not i.isdigit()])
+                category = '_'.join(link_ending[1:]).split('.')[0]
+            
+            path = os.path.join('raw_data', data['ID'], 'pictures', category)
+            if not os.path.isdir(path):
+                os.makedirs(path)
+            
+            filepath = os.path.join(path, link.split('/')[-1])
+            urllib.request.urlretrieve(link, filepath)
+            
+            
+    
+    
+    
+    def clear_survey_window(self):
+            if self.wait_for('survey_window', period = 5, print_warning = False):
+                self.click_button('survey_window_no')
+
+
+
+
 
 if __name__ == '__main__':
     
-    setup_lego()
-    lego.navigate('https://www.lego.com/en-gb/product/90-years-of-play-11021', 'details_page')
-    
-    page = lego.find_element_soup('webpage')
-    
-    text = []
-    counter = 0
-    
-    baddies = ['All rights reserved', 'Skip to main content', 'Play Zone', 'ShopDiscoverHelp', 'Sets by themeAgesPrice']
-    
-    if lego.wait_for('survey_window', period = 5, print_warning = False):
-        lego.click_button('survey_window_no')
-    
-    imgs = lego.harvest_image_sources('item_pictures')
-    text = lego.harvest_text_from_elements(['item_description', 'item_stats', 'item_rating', 'item_price'])
-    product_data = expand_lego_text(text, imgs)
+    lego = LegoScraper()
+    product_data = lego.collect_product_data('https://www.lego.com/en-gb/product/tony-stark-s-sakaarian-iron-man-76194', download_pics = True)
     print(product_data)
-
-    # imgs = lego.harvest_image_sources('item_pictures')
-    # for img in imgs:
-    #     print(img)
-    
-    # for element in page.find_all():
-    #     check = sum([element.get_text().count(baddie) for baddie in baddies])
-    #     if check != 0 or element.get_text() == '':
-    #         continue
-    #     text.append((lego.build_xpath(element), element.get_text(separator = '¬')))
-    #     counter += 1
-    #     if counter == 500:
-    #         break
-    
-    # f = open('output.txt', 'w', encoding = 'utf-8')
-    # for x in set(text):
-    #     f.write(f'\n{x}')
-    # f.close()
