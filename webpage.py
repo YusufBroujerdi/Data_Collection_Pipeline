@@ -45,14 +45,14 @@ class Scraper:
         
         while True:
             
-            if (self.find_element_soup(element_name) == None) and (appear == 'disappear'):
-                return True
-            if (self.find_element_soup(element_name) != None) and (appear == 'appear'):
+            element = self.find_element_soup(element_name)
+            
+            if (element == None and appear == 'disappear') or (element != None and appear == 'appear'):
                 return True
             
             if time.time() > starting_time + period:
                 if print_warning:
-                    print(f"waited {period} seconds for element {element_name} to {appear}. But it never did.")
+                    print(f'waited {period} seconds for element {element_name} to {appear}. But it never did.')
                 return False
     
     
@@ -60,6 +60,7 @@ class Scraper:
     def wait_for_then_click(self, buttons, period = 10, print_warning = True):
             
         for button_name in buttons:
+            
             if self.wait_for(button_name, period = period, print_warning = print_warning):
                 self.click_button(button_name)
     
@@ -68,6 +69,7 @@ class Scraper:
     def scroll_to_bottom(self, bottom_element_name, condition_element_name, condition):
         
         while not condition(self.find_element_soup(condition_element_name)):
+            
             self.driver.execute_script("arguments[0].scrollIntoView();", self.find_element(bottom_element_name))
     
     
@@ -75,26 +77,25 @@ class Scraper:
     def harvest_links(self, element_name, condition):
         
         link_elements = self.find_element_soup(element_name).find_all(condition)
+        
         return [link_element.get('href') for link_element in link_elements]
     
     
     
-    def harvest_image_sources(self, element_name, condition = lambda tag : tag.name == 'img'):
+    def harvest_image_sources(self, element_list, condition = lambda tag : tag.name == 'img'):
         
-        picture_elements = self.find_element_soup(element_name).find_all(condition)
-        return [picture_element.get('src').split('?')[0] for picture_element in picture_elements]
+        picture_elements = [self.find_element_soup(element_name).find_all(condition) for element_name in element_list]
+        picture_elements_flattened = [picture_element for sublist in picture_elements for picture_element in sublist]
+        
+        return [picture_element.get('src').split('?')[0] for picture_element in picture_elements_flattened]
     
     
     
     def harvest_text_from_elements(self, element_list):
         
-        text = dict()
+        get_text_of = lambda element_name : self.find_element_soup(element_name).get_text(separator = '¬')
         
-        for element_name in element_list:
-            element = self.find_element_soup(element_name)
-            text[element_name] = element.get_text(separator = '¬')
-        
-        return text
+        return {element_name : get_text_of(element_name) for element_name in element_list}
     
     
     
@@ -112,6 +113,14 @@ class Scraper:
     
     
     
+    def filter_elements(self, filters):
+        
+        check = lambda e : 'filters' in self.elements[e].keys() and (set(filters) & self.elements[e]['filters'])
+        
+        return([element_name for element_name in self.elements.keys() if check(element_name)])
+    
+    
+    
     def build_xpath(self, element):
     
         components = []
@@ -125,6 +134,7 @@ class Scraper:
                 
             else:
                 for index, sibling in enumerate(siblings, 1):
+                    
                     if sibling is element:
                         components.append(f'{element.name}[{str(index)}]')
                         
@@ -146,7 +156,9 @@ class Scraper:
 
         return parent.find(element['condition'])
     
+    
     derive_xpath = lambda self, element_name : self.build_xpath(self.find_element_soup(element_name))
+    
     
     find_element = lambda self, element_name : self.driver.find_element(By.XPATH, self.derive_xpath(element_name))
 
@@ -187,7 +199,6 @@ class LegoScraper(Scraper):
             self.scroll_to_bottom('page_bottom_post_show_all', 'showing_x_of_y_text', condition)
             
             condition = lambda element : element.has_attr('data-test') and element['data-test'] == 'product-leaf-title-link'
-            #above condition specifies those elements which have a text link.
             details_page_links = details_page_links + self.harvest_links('page_info', condition)
         
         return(details_page_links)
@@ -200,45 +211,30 @@ class LegoScraper(Scraper):
         self.navigate(link, f'{product_id}_details_page')
         self.clear_survey_window()
     
-        imgs = lego.harvest_image_sources('item_pictures')
-        text = lego.harvest_text_from_elements(['item_description', 'item_stats', 'item_rating', 'item_price'])
-        return(lego.expand_lego_data(text, imgs, download_pics))
-    
-    
-    
-    def collect_products_data(self, links):
+        imgs = lego.harvest_image_sources(self.filter_elements(['image_elements']))
+        text = lego.harvest_text_from_elements(self.filter_elements(['text_elements']))
+        spl_text = {element_name : element_text.split('¬') for element_name, element_text in text.items()}
+        data = {**text, 'img_links' : imgs, 'UUID' : str(uuid.uuid4())}
         
-        for links in link:
-            self.collect_product_data(link)
-    
-    
-    
-    def expand_lego_data(self, text, img_links, download_pics):
+        key_mapping = lambda schema: spl_text[schema[0]][schema[1]] if len(schema) > 1 else data[schema[0]]
+        condition = lambda schema : schema[0] not in l.data_restrictions.keys() or l.data_restrictions[schema[0]](spl_text[schema[0]])
+        formatted_data = {key : key_mapping(schema) if condition(schema) else None for key, schema in l.data_schema.items()}
         
-        item_stats = text['item_stats'].split('¬')
-        item_rating = text['item_rating'].split('¬')
-        item_price = text['item_price'].split('¬')
-        
-        data = {'ID' : item_stats[6],
-                'Name' : item_rating[0],
-                'Price' : item_price[1],
-                'Age' : item_stats[0],
-                'Pieces' : item_stats[2],
-                'Average Rating' : item_rating[1],
-                'Number of Ratings' : item_rating[3],
-                'Description' : text['item_description'],
-                'Image Links' : img_links,
-                'UUID' : str(uuid.uuid4())
-        }
-        
-        self.store_data(data)
+        self.store_data(formatted_data)
         if download_pics:
-            self.download_product_pictures(data)
-        return data
+            self.store_image_data(formatted_data)
+        return formatted_data
     
     
     
-    def download_product_pictures(self, data):
+    def collect_products_data(self, links, download_pics = False):
+        
+        for link in links:
+            self.collect_product_data(link, download_pics)
+    
+    
+    
+    def store_image_data(self, data):
         
         for link in data['Image Links']:
             
@@ -270,5 +266,5 @@ class LegoScraper(Scraper):
 if __name__ == '__main__':
     
     lego = LegoScraper()
-    product_data = lego.collect_product_data('https://www.lego.com/en-gb/product/tony-stark-s-sakaarian-iron-man-76194', download_pics = True)
-    print(product_data)
+    product_data = lego.collect_products_data(['https://www.lego.com/en-gb/product/tony-stark-s-sakaarian-iron-man-76194', \
+        'https://www.lego.com/en-gb/product/shuri-s-sunbird-76211'], download_pics = True)

@@ -60,27 +60,39 @@ dictionary = {
     #Details page elements
     'item_description' : {
         'condition' : lambda tag : tag.has_attr('class') and tag['class'] == ['ProductDetailsPagestyles__ProductDynamicContentContainer-sc-1waehzg-6', 'iHKzHW'],
-        'dependency' : 'webpage'
+        'dependency' : 'webpage',
+        'filters' : {'text_elements'}
     },
     
     'item_stats' : {
         'condition' : lambda tag : tag.has_attr('class') and tag['class'] == ['ProductAttributesstyles__Container-sc-1sfk910-0', 'ctVkib'],
-        'dependency' : 'webpage'
+        'dependency' : 'webpage',
+        'filters' : {'text_elements'}
     },
     
     'item_rating' : {
         'condition' : lambda tag : tag.has_attr('class') and tag['class'] == ['ProductOverviewstyles__ProductBadgesRow-sc-1a1az6h-0', 'bCQoZx'],
-        'dependency' : 'webpage'
+        'dependency' : 'webpage',
+        'filters' : {'text_elements'}
     },
     
     'item_price' : {
         'condition' : lambda tag : tag.has_attr('class') and tag['class'] == ['ProductOverviewstyles__PriceAvailabilityWrapper-sc-1a1az6h-10', 'fCBTFc'],
-        'dependency' : 'webpage'
+        'dependency' : 'webpage',
+        'filters' : {'text_elements'}
+    },
+    
+    'item_name' : {
+        'condition' : lambda tag : tag.has_attr('data-test') and tag['data-test'] == 'product-overview-name' and \
+            tag.has_attr('itemprop') and tag['itemprop'] == 'name',
+        'dependency' : 'webpage',
+        'filters' : {'text_elements'}
     },
     
     'item_pictures' : {
         'condition' : lambda tag : tag.has_attr('class') and tag['class'] == ['MediaQuery__MediaHideable-sc-1poqfy2-0', 'fjfTGa', 'ProductMediaViewerstyles__MediaQueryThumbnailsHorizontal-sc-13pkbbe-2', 'gnVtlp'],
-        'dependency' : 'webpage'
+        'dependency' : 'webpage',
+        'filters' : {'image_elements'}
     }
 }
 
@@ -92,6 +104,27 @@ product_list_links = ['https://www.lego.com/en-au/categories/age-1-plus-years',
     'https://www.lego.com/en-au/categories/age-9-plus-years',
     'https://www.lego.com/en-au/categories/age-13-plus-years',
     'https://www.lego.com/en-au/categories/age-18-plus-years']
+
+
+data_schema = {'ID' : ['item_stats', 6],
+                'Name' : ['item_name'],
+                'Price' : ['item_price', 1],
+                'Age' : ['item_stats', 0],
+                'Pieces' : ['item_stats', 2],
+                'Average Rating' : ['item_rating', 1],
+                'Number of Ratings' : ['item_rating', 3],
+                'Description' : ['item_description'],
+                'Image Links' : ['img_links'],
+                'UUID' : ['UUID']}
+
+
+
+data_restrictions = {'item_stats' : lambda text : len(text) > 6,
+                     'item_rating' : lambda text : len(text) > 3 and text[1].replace('.', '').isnumeric() and \
+                         float(text[1]) <= 5 and text[3].isdigit()}
+
+
+
 
 
 # 'page_info_and_bottom' : {
