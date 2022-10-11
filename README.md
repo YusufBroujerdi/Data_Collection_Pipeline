@@ -144,7 +144,7 @@ dictionary = {
                 return False
 ```
 
-- I am proud of the readability of these methods. They choose elements via readable names:
+- I am proud of the readability of these methods. They choose elements via readable names. Here is an example of their usage to navigate the lego website and harvest links:
 
 ```
 if __name__ == '__main__':
@@ -171,3 +171,115 @@ if __name__ == '__main__':
         condition = lambda tag : tag.has_attr('data-test') and tag['data-test'] == 'product-leaf-title-link'
         details_page_links = details_page_links + lego.harvest_links('page_info', condition)
 ```
+
+### Milestone 4
+
+- With the provisions made in Milestone 3, the methods to harvest text and image links were fairly routine.
+
+```
+    def harvest_image_sources(self, element_list, condition = lambda tag : tag.name == 'img'):
+        
+        picture_elements = [self.find_element_soup(element_name).find_all(condition) for element_name in element_list]
+        picture_elements_flattened = [picture_element for sublist in picture_elements for picture_element in sublist]
+        
+        return [picture_element.get('src').split('?')[0] for picture_element in picture_elements_flattened]
+    
+    
+    
+    def harvest_text_from_elements(self, element_list):
+        
+        get_text_of = lambda element_name : self.find_element_soup(element_name).get_text(separator = '¬')
+        
+        return {element_name : get_text_of(element_name) for element_name in element_list}
+```
+
+- Through the use of list and dictionary comprehensions, we can make the methods fairly compact too. It seemed natural to also allow one to specify particular elements to harvest text from - to avoid the page's clutter.
+
+- However, though I know vaguely I'm interested in price, I wasn't sure whether I'd want to measure more data points later. Or if maybe I'd need to extract the same data from different elements at other times. I already have a nice way of storing elements of interest via the dictionary so I built on this by creating functionality to easily add new elements to extract text data from. For example, I discovered a particular page where the element I extracted the product name from didn't work - I originally called it from the same element I used to get ratings. However, this page had no ratings because the product was new!
+
+![picture](pictures/element_demo_2.png)
+
+- Creating a new element to harvest the name had 2 steps. Firstly, I added the element to the dictionary: 
+
+```
+    'item_name' : {
+        'condition' : lambda tag : tag.has_attr('data-test') and tag['data-test'] == 'product-overview-name' and \
+            tag.has_attr('itemprop') and tag['itemprop'] == 'name',
+        'dependency' : 'webpage',
+        'filters' : {'text_elements'}
+    }
+```
+
+- The 'filters' key means this element will be picked up when we ask to harvest text from all elements with this filter. (There is a new method which calls all elements from the dictionary with a particular set of filters). Then I added the element to the schema for our raw_data dictionary:
+
+```
+data_schema = {'ID' : ['item_stats', 6],
+                'Name' : ['item_name'],
+                'Price' : ['item_price', 1],
+                'Age' : ['item_stats', 0],
+                'Pieces' : ['item_stats', 2],
+                'Average Rating' : ['item_rating', 1],
+                'Number of Ratings' : ['item_rating', 3],
+                'Description' : ['item_description'],
+                'Image Links' : ['img_links'],
+                'UUID' : ['UUID']}
+```
+
+- The numbers specify if we want to take text from a particular part of an element. If in the future there are more complicated text extractions we need to make, by adjusting one line of code I can allow lambda functions to be placed there for more complicated manipulations. In our case, the element we chose contains the name and name only, so I just write 'item_name' and put it in a list - the schema now knows to pull the text for 'Name' from the element we've named 'item_name' in our dictionary. This method handles the grizzly details:
+
+```
+    def collect_product_data(self, link, download_pics = False):
+
+        product_id = link.split('-')[-1]
+        self.navigate(link, f'{product_id}_details_page')
+        self.clear_survey_window()
+    
+        imgs = lego.harvest_image_sources(self.filter_elements(['image_elements']))
+        text = lego.harvest_text_from_elements(self.filter_elements(['text_elements']))
+        spl_text = {element_name : element_text.split('¬') for element_name, element_text in text.items()}
+        data = {**text, 'img_links' : imgs, 'UUID' : str(uuid.uuid4())}
+        
+        key_mapping = lambda schema: spl_text[schema[0]][schema[1]] if len(schema) > 1 else data[schema[0]]
+        condition = lambda schema : schema[0] not in l.data_restrictions.keys() or l.data_restrictions[schema[0]](spl_text[schema[0]])
+        formatted_data = {key : key_mapping(schema) if condition(schema) else None for key, schema in l.data_schema.items()}
+        
+        self.store_data(formatted_data)
+        if download_pics:
+            self.store_image_data(formatted_data)
+        return formatted_data
+```
+
+- The "condition" lambda checks if a given text element we're using looks how we expect it to. There's another dictionary of data_restrictions. If the given element's text fails to meet these restrictions, we know something is seriously wrong with it and return nulls:
+
+```
+data_restrictions = {'item_stats' : lambda text : len(text) > 6,
+                     'item_rating' : lambda text : len(text) > 3 and text[1].replace('.', '').isnumeric() and \
+                         float(text[1]) <= 5 and text[3].isdigit()}
+```
+
+- We do not have to add data_restrictions if we don't need to. Right now, the only restriction I'm really using is the 'item_rating' restriction which ensures ratings actually exist (i.e. the item might be new and not rated yet.)
+
+- Lastly, I've divided the methods into two classes: Scraper, and LegoScraper which inherits from Scraper. It seemed worthwhile to divide functionality that could be used for any website and functionality that is specific to the idiosyncracies of lego's website. A remarkable quantity of the code fits into the former category. Though the store_image_data method is a key exception:
+
+```
+    def store_image_data(self, data):
+        
+        for link in data['Image Links']:
+            
+            link_ending = link.split('/')[-1].split('_')
+            
+            if len(link_ending) == 1:
+                category = 'main_picture'
+            else:
+                link_ending[-1] = ''.join([i for i in link_ending[-1] if not i.isdigit()])
+                category = '_'.join(link_ending[1:]).split('.')[0]
+            
+            path = os.path.join('raw_data', data['ID'], 'pictures', category)
+            if not os.path.isdir(path):
+                os.makedirs(path)
+            
+            filepath = os.path.join(path, link.split('/')[-1])
+            urllib.request.urlretrieve(link, filepath)
+```
+
+- Whereas the store_data() method for text is quite generic and routine, the store_image_data method leverages the structure of lego image URLs to appropriately sort the images into folders. Whether the patterns I exploited will extrapolate to other image links on other product pages remains to be seen.
