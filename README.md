@@ -229,19 +229,18 @@ data_schema = {'ID' : ['item_stats', 6],
 
 ```
     def collect_product_data(self, link, download_pics = False):
-
-        product_id = link.split('-')[-1]
-        self.navigate(link, f'{product_id}_details_page')
+        
+        self.navigate(link, 'details_page')
         self.clear_survey_window()
     
-        imgs = lego.harvest_image_sources(self.filter_elements(['image_elements']))
-        text = lego.harvest_text_from_elements(self.filter_elements(['text_elements']))
+        imgs = self.harvest_image_sources(self.filter_elements(['image_elements']))
+        text = self.harvest_text_from_elements(self.filter_elements(['text_elements']))
         spl_text = {element_name : element_text.split('¬') for element_name, element_text in text.items()}
         data = {**text, 'img_links' : imgs, 'UUID' : str(uuid.uuid4())}
         
         key_mapping = lambda schema: spl_text[schema[0]][schema[1]] if len(schema) > 1 else data[schema[0]]
-        condition = lambda schema : schema[0] not in l.data_restrictions.keys() or l.data_restrictions[schema[0]](spl_text[schema[0]])
-        formatted_data = {key : key_mapping(schema) if condition(schema) else None for key, schema in l.data_schema.items()}
+        condition = lambda schema : schema[0] not in self.data_restrictions.keys() or self.data_restrictions[schema[0]](spl_text[schema[0]])
+        formatted_data = {key : key_mapping(schema) if condition(schema) else None for key, schema in self.data_schema.items()}
         
         self.store_data(formatted_data)
         if download_pics:
