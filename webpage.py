@@ -1,12 +1,12 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-import time
 from bs4 import BeautifulSoup
-import lego_elements as l
-import uuid
-import os
+from selenium.webdriver.common.by import By
+from selenium import webdriver
 import json
+import lego_elements as l
+import os
+import time
 import urllib.request
+import uuid
 
 
 class Scraper:
@@ -16,6 +16,8 @@ class Scraper:
         
         self.driver = webdriver.Chrome()
         self.elements = dict()
+        self.data_restrictions = dict()
+        self.data_schema = dict()
         self.driver.get(URL)
         self.webpage = webpage_name
     
@@ -70,7 +72,7 @@ class Scraper:
         
         while not condition(self.find_element_soup(condition_element_name)):
             
-            self.driver.execute_script("arguments[0].scrollIntoView();", self.find_element(bottom_element_name))
+            self.driver.execute_script('arguments[0].scrollIntoView();', self.find_element(bottom_element_name))
     
     
     
@@ -99,6 +101,34 @@ class Scraper:
     
     
     
+    def collect_product_data(self, link, download_pics = False):
+        
+        self.navigate(link, 'details_page')
+        self.clear_survey_window()
+    
+        imgs = self.harvest_image_sources(self.filter_elements(['image_elements']))
+        text = self.harvest_text_from_elements(self.filter_elements(['text_elements']))
+        spl_text = {element_name : element_text.split('¬') for element_name, element_text in text.items()}
+        data = {**text, 'img_links' : imgs, 'UUID' : str(uuid.uuid4())}
+        
+        key_mapping = lambda schema: spl_text[schema[0]][schema[1]] if len(schema) > 1 else data[schema[0]]
+        condition = lambda schema : schema[0] not in self.data_restrictions.keys() or self.data_restrictions[schema[0]](spl_text[schema[0]])
+        formatted_data = {key : key_mapping(schema) if condition(schema) else None for key, schema in self.data_schema.items()}
+        
+        self.store_data(formatted_data)
+        if download_pics:
+            self.store_image_data(formatted_data)
+        return formatted_data
+    
+    
+    
+    def collect_products_data(self, links, download_pics = False):
+        
+        for link in links:
+            self.collect_product_data(link, download_pics)
+    
+    
+    
     def store_data(self, data):
         
         path = os.path.join('raw_data', data['ID'])
@@ -111,11 +141,14 @@ class Scraper:
         with open(f'{path}\data.json', 'w', encoding = 'utf-8') as file:
             json.dump(data, file)
     
+    def store_image_data(self, data):
+        pass
+    
     
     
     def filter_elements(self, filters):
         
-        check = lambda e : 'filters' in self.elements[e].keys() and (set(filters) & self.elements[e]['filters'])
+        check = lambda element_name : 'filters' in self.elements[element_name].keys() and (set(filters) & self.elements[element_name]['filters'])
         
         return([element_name for element_name in self.elements.keys() if check(element_name)])
     
@@ -148,7 +181,7 @@ class Scraper:
     def find_element_soup(self, element_name):
         
         if element_name == 'webpage':
-            page_html = self.driver.execute_script("return document.documentElement.outerHTML;")
+            page_html = self.driver.execute_script('return document.documentElement.outerHTML;')
             return BeautifulSoup(page_html, 'html.parser')
         
         element = self.elements[element_name]
@@ -172,6 +205,8 @@ class LegoScraper(Scraper):
     def __init__(self):
         super().__init__(l.front_page_link, 'front_page')
         self.elements = l.dictionary
+        self.data_restrictions = l.data_restrictions
+        self.data_schema = l.data_schema
         self.setup()
         #self.links = self.get_lego_links()
     
@@ -181,6 +216,12 @@ class LegoScraper(Scraper):
 
         self.wait_for('age_check_overlay')
         self.wait_for_then_click(['age_check_button', 'cookie_accept_button'])
+    
+    
+    
+    def clear_survey_window(self):
+            if self.wait_for('survey_window', period = 5, print_warning = False):
+                self.click_button('survey_window_no')
     
     
     
@@ -205,35 +246,6 @@ class LegoScraper(Scraper):
     
     
     
-    def collect_product_data(self, link, download_pics = False):
-
-        product_id = link.split('-')[-1]
-        self.navigate(link, f'{product_id}_details_page')
-        self.clear_survey_window()
-    
-        imgs = lego.harvest_image_sources(self.filter_elements(['image_elements']))
-        text = lego.harvest_text_from_elements(self.filter_elements(['text_elements']))
-        spl_text = {element_name : element_text.split('¬') for element_name, element_text in text.items()}
-        data = {**text, 'img_links' : imgs, 'UUID' : str(uuid.uuid4())}
-        
-        key_mapping = lambda schema: spl_text[schema[0]][schema[1]] if len(schema) > 1 else data[schema[0]]
-        condition = lambda schema : schema[0] not in l.data_restrictions.keys() or l.data_restrictions[schema[0]](spl_text[schema[0]])
-        formatted_data = {key : key_mapping(schema) if condition(schema) else None for key, schema in l.data_schema.items()}
-        
-        self.store_data(formatted_data)
-        if download_pics:
-            self.store_image_data(formatted_data)
-        return formatted_data
-    
-    
-    
-    def collect_products_data(self, links, download_pics = False):
-        
-        for link in links:
-            self.collect_product_data(link, download_pics)
-    
-    
-    
     def store_image_data(self, data):
         
         for link in data['Image Links']:
@@ -243,7 +255,7 @@ class LegoScraper(Scraper):
             if len(link_ending) == 1:
                 category = 'main_picture'
             else:
-                link_ending[-1] = ''.join([i for i in link_ending[-1] if not i.isdigit()])
+                link_ending[-1] = ''.join([char for char in link_ending[-1] if not char.isdigit()])
                 category = '_'.join(link_ending[1:]).split('.')[0]
             
             path = os.path.join('raw_data', data['ID'], 'pictures', category)
@@ -252,12 +264,6 @@ class LegoScraper(Scraper):
             
             filepath = os.path.join(path, link.split('/')[-1])
             urllib.request.urlretrieve(link, filepath)
-    
-    
-    
-    def clear_survey_window(self):
-            if self.wait_for('survey_window', period = 5, print_warning = False):
-                self.click_button('survey_window_no')
 
 
 
