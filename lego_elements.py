@@ -1,3 +1,5 @@
+import webpage
+
 dictionary = {
     #Front page elements
     'age_check_overlay' : {
@@ -106,22 +108,42 @@ product_list_links = ['https://www.lego.com/en-au/categories/age-1-plus-years',
     'https://www.lego.com/en-au/categories/age-18-plus-years']
 
 
-data_schema = {'ID' : ['item_stats', 6],
-                'Name' : ['item_name'],
-                'Price' : ['item_price', 1],
-                'Age' : ['item_stats', 0],
-                'Pieces' : ['item_stats', 2],
-                'Average Rating' : ['item_rating', 1],
-                'Number of Ratings' : ['item_rating', 3],
-                'Description' : ['item_description'],
-                'Image Links' : ['img_links'],
-                'UUID' : ['UUID']}
+data_schema = {
+    'ID' : {'element' : 'item_stats',
+        'map' : lambda text : text.split('¬')[6]},
+    
+    'Name' : {'element' : 'item_name'},
+    
+    'Price' : {'element' : 'item_price',
+        'map' : lambda text : text.split('¬')[1]},
+    
+    'Age' : {'element' : 'item_stats',
+        'map' : lambda text : text.split('¬')[0]},
+    
+    'Pieces' : {'element' : 'item_stats',
+        'map' : lambda text : text.split('¬')[2]},
+    
+    'Average Rating' : {'element' : 'item_rating',
+        'map' : lambda text : text.split('¬')[1]},
+    
+    'Number of Ratings' : {'element' : 'item_rating',
+        'map' : lambda text : text.split('¬')[3]},
+    
+    'Description' : {'element' : 'item_description'},
+    
+    'Image Links' : {'element' : 'img_links'},
+    
+    'UUID' : {'element' : 'UUID'}
+}
 
 
 
-data_restrictions = {'item_stats' : lambda text : len(text) > 6,
-                     'item_rating' : lambda text : len(text) > 3 and text[1].replace('.', '').isnumeric() and \
-                         float(text[1]) <= 5 and text[3].isdigit()}
+data_restrictions = {
+    'item_stats' : lambda text : len(text) > 6,
+                     
+    'item_rating' : lambda text : len(text) > 3 and text[1].replace('.', '').isnumeric() and \
+        float(text[1]) <= 5 and text[3].isdigit()
+}
 
 
 
