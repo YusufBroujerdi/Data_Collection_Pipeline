@@ -2,7 +2,7 @@ from bs4 import BeautifulSoup
 from selenium.webdriver.common.by import By
 from selenium import webdriver
 import json
-import lego_elements as l
+import lego_elements
 import os
 import time
 import urllib.request
@@ -18,6 +18,7 @@ class SoupElement:
 
 
 class Scraper:
+    '''This class represents a generic scraper. Its methods are website-independent.'''
     
     
     def __init__(self, URL : str):
@@ -106,6 +107,7 @@ class Scraper:
     def collect_text_from_elements(self, elements : list) -> dict:
         '''Collect text from every element in the list of "elements" and return a dictionary.'''
         get_text_of = lambda element_name : self.find_element_soup(element_name).get_text(separator = '¬')
+        #We use the separator ¬ for when an element returns text from multiple sub-elements to separate the text.
         
         return {element_name : get_text_of(element_name) for element_name in elements}
     
@@ -122,7 +124,14 @@ class Scraper:
     
     
     def __format_data(self, data : dict) -> dict:
-        '''Format the data dictionary produced by "__collect_page_data", using the layout in "data_schema" and respecting the conditions given in "data_restrictions".'''
+        '''Format the data dictionary "data" produced by "__collect_page_data".
+        
+        Uses the layout specified by "self.data_schema" while respecting the conditions given in "self.data_restrictions".
+        
+        More specifically, each key of "self.data_schema" specifies a key in the formatted data dictionary, while its value describes a "schema"
+        that derives the value of the key in the formatted data dictionary from the "data". self.data_restrictions performs sanity checks on the incoming data, and
+        turns broken data into "None"s.
+        '''
         key_mapping = lambda schema: schema['map'](data[schema['element']]) if 'map' in schema.keys() else data[schema['element']]
         
         data_restriction_check = lambda element : element not in self.data_restrictions.keys() or self.data_restrictions[element](data[element])
@@ -241,14 +250,14 @@ class Scraper:
 
 
 class LegoScraper(Scraper):
-    
+    '''This class represents a Scraper to be used on Lego.com. Its methods are specific to the idiosyncracies of the Lego website.'''
     
     def __init__(self):
         
-        super().__init__(l.front_page_link)
-        self.elements = l.dictionary
-        self.data_restrictions = l.data_restrictions
-        self.data_schema = l.data_schema
+        super().__init__(lego_elements.front_page_link)
+        self.elements = lego_elements.elements
+        self.data_restrictions = lego_elements.data_restrictions
+        self.data_schema = lego_elements.data_schema
         self.__setup_front_page()
         #self.links = self.collect_lego_set_links()
     
@@ -286,7 +295,7 @@ class LegoScraper(Scraper):
     def collect_lego_set_links(self) -> list:
         '''Collect all the links on the product_list pages for lego sets.'''
         details_page_links = []
-        for product_list_link in l.product_list_links:
+        for product_list_link in lego_elements.product_list_links:
             
             self.navigate(product_list_link, 'product_list')
             

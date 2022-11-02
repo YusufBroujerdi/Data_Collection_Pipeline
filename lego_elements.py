@@ -1,6 +1,6 @@
-import webpage
-
-dictionary = {
+'''lego_elements contains reference info to aid LegoScraper, such as a dictionary of all elements interacted with (named by their key)
+and a schema dictionary specifying how data is stored.'''
+elements = {
     #Front page elements
     'age_check_overlay' : {
         'condition' : lambda tag : tag.has_attr('class') and tag['class'] == ['AgeGatestyles__Wrapper-xudtvj-0', 'itkEkg'],
@@ -139,10 +139,10 @@ data_schema = {
 
 
 data_restrictions = {
-    'item_stats' : lambda text : len(text) > 6,
+    'item_stats' : lambda text : len(text.split('¬')) > 6,
                      
-    'item_rating' : lambda text : len(text) > 3 and text[1].replace('.', '').isnumeric() and \
-        float(text[1]) <= 5 and text[3].isdigit()
+    'item_rating' : lambda text : len(text.split('¬')) > 3 and text.split('¬')[1].replace('.', '').isnumeric() and \
+        float(text[1]) <= 5 and text.split('¬')[3].isdigit()
 }
 
 
